@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R.S.I.S. — Access Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a0c10;
+    --panel:#141822;
+    --panel-2:#0e1117;
+    --line:#262c38;
+    --blue:#3da9d1;
+    --gold:#c9a227;
+    --ash:#9aa5b1;
+    --ash-dim:#5b6472;
+    --alert:#c25450;
+    --good:#4caf6d;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top, rgba(61,169,209,0.06), transparent 60%),
+      var(--void);
+    color:var(--ash);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:32px 20px 60px;
+  }
+  .scanlines{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+    opacity:0.5;
+  }
+  .wrap{ max-width:980px; margin:0 auto; position:relative; z-index:1; }
+
+  .banner{
+    display:flex; align-items:center; justify-content:space-between;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    padding:14px 20px;
+    border-radius:4px;
+    margin-bottom:6px;
+  }
+  .banner-left{ display:flex; align-items:center; gap:12px; }
+  .crest{
+    width:34px; height:34px; border:1.5px solid var(--blue); border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--blue); font-size:13px;
+    flex-shrink:0;
+  }
+  .org{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em;
+    color:var(--ash-dim); text-transform:uppercase; line-height:1.5;
+  }
+  .org strong{ color:var(--ash); display:block; font-size:13px; letter-spacing:.08em; }
+  .eyes-only{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em;
+    color:var(--gold); border:1px solid rgba(201,162,39,0.4); padding:5px 10px; border-radius:3px;
+    white-space:nowrap;
+  }
+  .stripe{
+    height:3px; margin-bottom:28px; border-radius:2px;
+    background:repeating-linear-gradient(90deg, var(--gold) 0 18px, transparent 18px 26px);
+    opacity:.6;
+  }
+
+  .intro{ margin-bottom:30px; }
+  .intro h1{
+    font-family:'JetBrains Mono',monospace; color:#e7eaee; font-size:22px; font-weight:700;
+    margin:0 0 8px; letter-spacing:.01em;
+  }
+  .intro p{ margin:0; font-size:14.5px; line-height:1.6; color:var(--ash); max-width:640px; }
+
+  .grid{ display:grid; grid-template-columns:240px 1fr; gap:18px; align-items:start; }
+  @media (max-width:760px){ .grid{ grid-template-columns:1fr; } }
+
+  .caselog{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden;
+  }
+  .caselog-head{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.14em; color:var(--ash-dim);
+    text-transform:uppercase; padding:12px 14px; border-bottom:1px solid var(--line);
+  }
+  .case-item{
+    padding:13px 14px; border-bottom:1px solid var(--line); cursor:default;
+    display:flex; flex-direction:column; gap:6px;
+    transition:background .2s ease;
+  }
+  .case-item:last-child{ border-bottom:none; }
+  .case-item.active{ background:rgba(61,169,209,0.07); }
+  .case-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .case-num{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ash-dim); letter-spacing:.08em; }
+  .status-pill{
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em;
+    padding:2px 7px; border-radius:10px; text-transform:uppercase; white-space:nowrap;
+  }
+  .status-locked{ color:var(--ash-dim); border:1px solid var(--line); }
+  .status-active{ color:var(--blue); border:1px solid rgba(61,169,209,0.5); }
+  .status-cleared{ color:var(--good); border:1px solid rgba(76,175,109,0.5); }
+
+  .redact-wrap{ position:relative; height:16px; overflow:hidden; border-radius:2px; }
+  .redact-label{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:#dfe3e8; white-space:nowrap;
+  }
+  .redact-bar{
+    position:absolute; inset:0; background:#05060a; transform-origin:right center;
+    transition:transform .9s cubic-bezier(.65,0,.35,1);
+  }
+  .case-item.cleared .redact-bar{ transform:scaleX(0); }
+  .case-item.locked .redact-label{ color:var(--ash-dim); }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:26px 28px 28px;
+    min-height:420px;
+  }
+  .panel-kicker{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; color:var(--gold);
+    text-transform:uppercase; margin-bottom:6px;
+  }
+  .panel-title{
+    font-family:'JetBrains Mono',monospace; font-size:19px; color:#eef0f3; font-weight:700; margin:0 0 18px;
+  }
+  .field{ margin-bottom:6px; }
+  .field-label{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.1em; color:var(--ash-dim);
+    text-transform:uppercase; margin-bottom:8px;
+  }
+  .cipher-frame{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px;
+    padding:16px 14px; margin-bottom:8px;
+    overflow-x:auto;
+  }
+  .cipher-frame canvas{
+    display:block; max-width:100%; height:auto;
+    user-select:none; -webkit-user-select:none; -moz-user-select:none;
+  }
+  .no-copy-note{
+    font-size:11px; color:var(--ash-dim); font-style:italic; margin:0 0 20px;
+  }
+
+  .answer-row{ display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  input[type=text]{
+    flex:1; min-width:200px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px;
+    color:#eef0f3; font-family:'JetBrains Mono',monospace; font-size:14px;
+    padding:11px 14px; outline:none; letter-spacing:.04em;
+  }
+  input[type=text]:focus{ border-color:var(--blue); }
+  button.decrypt{
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:.08em;
+    text-transform:uppercase; background:var(--blue); color:#04161d; border:none;
+    border-radius:5px; padding:0 22px; font-weight:700; cursor:pointer;
+    transition:filter .15s ease;
+  }
+  button.decrypt:hover{ filter:brightness(1.12); }
+  button.decrypt:active{ filter:brightness(0.92); }
+
+  .meta-row{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+    margin-top:14px;
+  }
+  .attempts{ font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ash-dim); }
+  .hint-btn{
+    background:none; border:1px solid var(--line); color:var(--ash-dim);
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.06em;
+    padding:6px 12px; border-radius:4px; cursor:pointer; text-transform:uppercase;
+  }
+  .hint-btn:hover{ color:var(--gold); border-color:rgba(201,162,39,0.5); }
+  .hint-text{
+    margin-top:12px; font-size:13px; color:var(--gold); font-style:italic; display:none;
+  }
+  .hint-text.show{ display:block; }
+
+  .feedback{
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; margin-top:14px;
+    padding:10px 12px; border-radius:4px; display:none;
+  }
+  .feedback.show{ display:block; }
+  .feedback.bad{ color:var(--alert); background:rgba(194,84,80,0.1); border:1px solid rgba(194,84,80,0.3); }
+  .feedback.ok{ color:var(--good); background:rgba(76,175,109,0.1); border:1px solid rgba(76,175,109,0.3); }
+
+  .final{ text-align:center; padding:30px 10px 10px; }
+  .stamp{
+    display:inline-block; font-family:'JetBrains Mono',monospace; font-weight:800;
+    font-size:13px; letter-spacing:.16em; color:var(--good);
+    border:2px solid var(--good); padding:7px 16px; border-radius:3px;
+    transform:rotate(-3deg); margin-bottom:18px;
+  }
+  .final h2{
+    font-family:'JetBrains Mono',monospace; color:#eef0f3; font-size:21px; margin:0 0 10px;
+  }
+  .final p{ font-size:14px; color:var(--ash); max-width:480px; margin:0 auto 24px; line-height:1.6; }
+  .join-btn{
+    display:inline-block; font-family:'JetBrains Mono',monospace; font-weight:700;
+    font-size:14px; letter-spacing:.06em; text-transform:uppercase;
+    background:var(--gold); color:#1c1503; padding:14px 30px; border-radius:5px;
+    text-decoration:none; transition:filter .15s ease;
+  }
+  .join-btn:hover{ filter:brightness(1.1); }
+
+  footer{
+    text-align:center; margin-top:26px; font-family:'JetBrains Mono',monospace;
+    font-size:10.5px; color:var(--ash-dim); letter-spacing:.06em;
+  }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="wrap">
+
+  <div class="banner">
+    <div class="banner-left">
+      <div class="crest">SIS</div>
+      <div class="org">Republic Strategic Information Service<strong>Recruit Access Terminal</strong></div>
+    </div>
+    <div class="eyes-only">Eyes Only</div>
+  </div>
+  <div class="stripe"></div>
+
+  <div class="intro">
+    <h1>Decryption Aptitude Evaluation</h1>
+    <p>Four sealed case files stand between you and an active channel assignment. Verify your file in time, handler.</p>
+  </div>
+
+  <div class="grid">
+    <div class="caselog" id="caselog"></div>
+    <div class="panel" id="panel"></div>
+  </div>
+
+  <footer>S.I.S.  USE — UNAUTHORIZED DISTRIBUTION OF ANSWERS RESULTS IN PUNISHMENTS LEADING UP TO THE BLACKLIST OF THE DISSEMINATING PARTY</footer>
+</div>
+
+<script>
+/* ======================================================
+   EDIT THIS LINE: paste your real Discord invite link below
+   ====================================================== */
+const DISCORD_INVITE = "https://discord.gg/YOUR-INVITE-CODE";
+
+/* ======================================================
+   Stage 4 isn't really a cipher to crack — it's a short reversed
+   note. Decoding it just gives an instruction pointing back to the
+   recruitment message, where the real answer word is sitting in
+   plain sight. The actual answer is RECRUITMENT_WORD below.
+
+   >>> EDIT THIS LINE <<<
+   Set RECRUITMENT_WORD to one word taken from the recruitment
+   message you're sending out alongside the link to this page.
+   Pick something distinctive (not "the" or "join") so it can't be
+   guessed without actually reading that message. The correct answer
+   updates automatically from this one line — you don't need to
+   touch anything else.
+   ====================================================== */
+const RECRUITMENT_WORD = "AGENT";
+
+/* ---------- Canvas drawing helpers ---------- */
+
+function setupCanvas(canvas, w, h){
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,w,h);
+  return ctx;
+}
+
+// Draws a string of characters with random per-character jitter so it
+// can't be lifted as plain text and has mild OCR resistance.
+function drawJitteredText(canvas, text, opts){
+  opts = opts || {};
+  const fontSize = opts.fontSize || 26;
+  const spacing = opts.spacing || fontSize * 0.95;
+  const color = opts.color || '#3da9d1';
+  const padding = 20;
+  const w = Math.max(280, text.length * spacing + padding * 2);
+  const h = fontSize * 2.4;
+  const ctx = setupCanvas(canvas, w, h);
+  ctx.font = `700 ${fontSize}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+
+  let x = padding + spacing/2;
+  const yMid = h/2;
+  for(const ch of text){
+    ctx.save();
+    const rot = (Math.random() - 0.5) * 0.22;       // ~ +/-6 degrees
+    const dy = (Math.random() - 0.5) * 8;
+    const dx = (Math.random() - 0.5) * 3;
+    ctx.translate(x + dx, yMid + dy);
+    ctx.rotate(rot);
+    ctx.fillText(ch === ' ' ? '' : ch, 0, 0);
+    ctx.restore();
+    x += spacing;
+  }
+}
+
+// Draws the signal as shapes (dots/dashes), not text characters.
+function drawSignalShapes(canvas, groups, opts){
+  opts = opts || {};
+  const color = opts.color || '#3da9d1';
+  const unit = 16;          // base spacing unit
+  const symGap = unit * 1.4;
+  const letterGap = unit * 3.2;
+  let totalWidth = 40;
+  groups.forEach((g, gi) => {
+    for(const s of g){ totalWidth += (s === '.' ? unit : unit * 2.4) + symGap; }
+    totalWidth += letterGap;
+  });
+  const h = 60;
+  const ctx = setupCanvas(canvas, totalWidth, h);
+  ctx.fillStyle = color;
+
+  let x = 24;
+  const yMid = h/2;
+  groups.forEach((g) => {
+    for(const s of g){
+      if(s === '.'){
+        ctx.beginPath();
+        ctx.arc(x + unit*0.3, yMid, unit*0.3, 0, Math.PI*2);
+        ctx.fill();
+        x += unit + symGap;
+      } else {
+        const dashW = unit * 2.4;
+        ctx.beginPath();
+        const r = 5;
+        roundRect(ctx, x, yMid - 5, dashW, 10, r);
+        ctx.fill();
+        x += dashW + symGap;
+      }
+    }
+    x += letterGap - symGap;
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+// Draws the custom 5-bit "Field Code" rune cipher: each letter becomes
+// its 1-indexed alphabet position (A=1...Z=26) in 5-bit binary, shown
+// as a row of filled (1) / hollow (0) dots inside a tile. Not standard
+// ASCII binary, so naive "convert binary to text" tools won't work
+// without the convention explained in the instructions.
+function drawRuneCipher(canvas, letters, opts){
+  opts = opts || {};
+  const color = opts.color || '#3da9d1';
+  const r = 6;
+  const dotGap = 16;
+  const tileW = dotGap * 5 + 18;
+  const tileGap = 14;
+  const w = letters.length * (tileW + tileGap) + 20;
+  const h = 70;
+  const ctx = setupCanvas(canvas, w, h);
+
+  let x = 18;
+  const yMid = h/2;
+  letters.forEach(ch => {
+    const pos = ch.toUpperCase().charCodeAt(0) - 64; // A=1
+    const bits = pos.toString(2).padStart(5,'0').split('');
+    let bx = x + 9;
+    bits.forEach(b => {
+      ctx.beginPath();
+      ctx.arc(bx, yMid, r, 0, Math.PI*2);
+      if(b === '1'){
+        ctx.fillStyle = color;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      bx += dotGap;
+    });
+    // small frame around the tile
+    ctx.strokeStyle = 'rgba(61,169,209,0.25)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, yMid - 16, tileW, 32);
+    x += tileW + tileGap;
+  });
+}
+
+/* ---------- Stage data ---------- */
+const stages = [
+  {
+    type: 'text',
+    codename: "Decryption Drill",
+    skill: "Field Cipher — Classified Method",
+    kicker: "Case File 01 — Coded Transmission",
+    intro: "A Republic courier intercepted this message en route to a safehouse. Every letter has been shifted three places down the alphabet. Shift each letter back to read the passphrase.",
+    payload: "VKDGRZ QHW",
+    answer: "shadownet",
+    hint: "Every letter has simply been nudged the same fixed number of steps through the alphabet, always in the same direction. Work out how many steps and which way, then undo it letter by letter.",
+  },
+  {
+    type: 'signal',
+    codename: "Signal Intercept",
+    skill: "Coded Signal — Classified",
+    kicker: "Case File 02 — Signal Intercept",
+    intro: "Comms picked up a short-range transmission from a contact on an outer-rim moon. Decode the signal to confirm their location. Dots are circles, dashes are bars.",
+    payload: [['.','-','.'],['.','.'],['.','.','.'],['.','.','.','.'],['.','.']],
+    answer: "rishi",
+    hint: "Each letter is built from short and long signal shapes. There's a well-known system a lot of people already half-remember for turning patterns of short and long signals into letters — see if it rings a bell.",
+  },
+  {
+    type: 'rune',
+    codename: "Field Code",
+    skill: "5-Bit Position Code",
+    kicker: "Case File 03 — Droid Relay",
+    intro: "An astromech droid logged this string before going dark. R.S.I.S. field convention: each letter is written as its position in the alphabet (A=1 … Z=26) in 5-bit binary. A filled dot is a 1, a hollow dot is a 0, read left to right.",
+    payload: ['Z','I','L','D','R','O','G'],
+    answer: "zildrog",
+    hint: "Each tile is a small number written with filled and hollow dots instead of digits. Work out what number each tile is showing, then think about what that number might line up with among the letters.",
+  },
+  {
+    type: 'text',
+    codename: "Final Verification",
+    skill: "Field Note — Classified",
+    kicker: "Case File 04 — Final Check",
+    intro: "This last one isn't from a dead drop — it's a short note scrawled in a hurry, meant to be read fast under pressure. Whoever left it figured you'd already have what you need close at hand.",
+    payload: "CHECK THE RECRUITMENT MESSAGE".split('').reverse().join(''),
+    answer: RECRUITMENT_WORD.toLowerCase(),
+    hint: "This one isn't shifted, split into shapes, or built from any code at all — just read it in the opposite direction from how it's written. Once it reads clearly, do what it says, then come back and submit what you find.",
+  }
+];
+
+let current = 0;
+const cleared = [false, false, false, false];
+const attemptCounts = [0, 0, 0, 0];
+
+const caselogEl = document.getElementById('caselog');
+const panelEl = document.getElementById('panel');
+
+function normalize(str){
+  return str.toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+
+function renderCaselog(){
+  let html = '<div class="caselog-head">Case Log</div>';
+  stages.forEach((s, i) => {
+    let statusClass, statusLabel, itemClass;
+    if(cleared[i]){
+      itemClass = 'cleared'; statusClass='status-cleared'; statusLabel='Cleared';
+    } else if(i === current){
+      itemClass = 'active'; statusClass='status-active'; statusLabel='In Progress';
+    } else {
+      itemClass = 'locked'; statusClass='status-locked'; statusLabel='Locked';
+    }
+    html += `
+      <div class="case-item ${itemClass} ${cleared[i] ? 'cleared' : ''}">
+        <div class="case-row">
+          <span class="case-num">FILE 0${i+1}</span>
+          <span class="status-pill ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="redact-wrap">
+          <span class="redact-label">${s.codename}</span>
+          <div class="redact-bar"></div>
+        </div>
+      </div>`;
+  });
+  caselogEl.innerHTML = html;
+}
+
+function renderPanel(){
+  if(cleared.every(c => c)){
+    renderFinal();
+    return;
+  }
+  const s = stages[current];
+  panelEl.innerHTML = `
+    <div class="panel-kicker">${s.kicker}</div>
+    <h2 class="panel-title">${s.codename} — ${s.skill}</h2>
+    <p style="font-size:13.5px; line-height:1.6; color:var(--ash); margin:0 0 18px;">${s.intro}</p>
+    <div class="field">
+      <div class="field-label">Encoded Transmission</div>
+      <div class="cipher-frame"><canvas id="cipherCanvas" oncontextmenu="return false"></canvas></div>
+      <p class="no-copy-note">Transmission rendered as a scan — text selection is disabled. Transcribe it manually.</p>
+    </div>
+    <div class="field-label">Submit Decrypted Passphrase</div>
+    <div class="answer-row">
+      <input type="text" id="answerInput" placeholder="Type your answer here..." autocomplete="off">
+      <button class="decrypt" id="submitBtn">Decrypt</button>
+    </div>
+    <div class="meta-row">
+      <span class="attempts" id="attemptsLabel">Attempts this case: ${attemptCounts[current]}</span>
+      <button class="hint-btn" id="hintBtn">Request Hint</button>
+    </div>
+    <div class="hint-text" id="hintText">${s.hint}</div>
+    <div class="feedback" id="feedback"></div>
+  `;
+
+  const canvas = document.getElementById('cipherCanvas');
+  if(s.type === 'text'){
+    drawJitteredText(canvas, s.payload, { fontSize: 24 });
+  } else if(s.type === 'signal'){
+    drawSignalShapes(canvas, s.payload);
+  } else if(s.type === 'rune'){
+    drawRuneCipher(canvas, s.payload);
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', checkAnswer);
+  document.getElementById('answerInput').addEventListener('keydown', e => {
+    if(e.key === 'Enter') checkAnswer();
+  });
+  document.getElementById('hintBtn').addEventListener('click', () => {
+    document.getElementById('hintText').classList.toggle('show');
+  });
+  document.getElementById('answerInput').focus();
+}
+
+function checkAnswer(){
+  const s = stages[current];
+  const input = document.getElementById('answerInput');
+  const feedback = document.getElementById('feedback');
+  const val = normalize(input.value);
+  attemptCounts[current]++;
+  document.getElementById('attemptsLabel').textContent = `Attempts this case: ${attemptCounts[current]}`;
+
+  if(val === s.answer){
+    cleared[current] = true;
+    feedback.textContent = "▌ DECRYPTION SUCCESSFUL — case file cleared.";
+    feedback.className = "feedback show ok";
+    renderCaselog();
+    setTimeout(() => {
+      if(current < stages.length - 1) current++;
+      renderPanel();
+    }, 1100);
+  } else {
+    feedback.textContent = "▌ DECRYPTION FAILED — passphrase does not match. Try again.";
+    feedback.className = "feedback show bad";
+    input.select();
+  }
+}
+
+function renderFinal(){
+  panelEl.innerHTML = `
+    <div class="final">
+      <div class="stamp">Declassified</div>
+      <h2>All Case Files Cleared</h2>
+      <p>Your decryption work checks out across every file. Command has authorized your transfer to the active channel. Extraction coordinates below — use them within 24 hours.</p>
+      <a class="join-btn" href="${DISCORD_INVITE}" target="_blank" rel="noopener">Enter Command Channel</a>
+    </div>
+  `;
+}
+
+renderCaselog();
+renderPanel();
+</script>
+</body>
+</html>
